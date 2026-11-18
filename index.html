@@ -1,6 +1,1563 @@
+GitHubの **`index.html` を、以下の内容で丸ごと置き換えて保存**してください。1ファイルで動きます。ダウンロード版も更新する場合は、同じ内容を `rhythm-standalone.html` にも保存してください。
+
+強弱は最初「なし」です。「強弱あり」にチェックすると追加できます。クラリネットは合成音です。**発音タイミングと強弱計算は簡易検証済みですが、ブラウザでの表示・実際の音は未確認です。**
+
+```html
 <!doctype html>
-<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>リズムのひろば</title><link rel="stylesheet" href="style.css"></head>
-<body><header><div><span class="eyebrow">RHYTHM PLAYGROUND</span><h1>リズムのひろば <span>2小節であそぼう</span></h1></div><div class="header-actions"><button id="undo">↶ もどす</button><button id="clear">クリア</button><button id="fullscreen">⛶ 全画面</button></div></header>
-<main><section class="workspace"><div class="board-heading"><span id="pattern-title">はじめのリズム</span><span class="meter">4 / 4 <i>•</i> 2小節</span></div><div class="transport" aria-label="メトロノーム"><button id="play" aria-pressed="false">▶ 再生</button><label class="tempo-label">テンポ <input id="tempo" type="number" min="40" max="240" value="100" inputmode="numeric"> BPM</label><label class="loop-label"><input id="loop" type="checkbox">くり返す</label><output id="play-status" role="status" aria-live="polite">4カウントでスタート</output></div><div id="board" aria-label="2小節のリズム"></div></section>
-<aside><section class="tools"><div class="section-title"><h2>音符をえらぶ</h2><span>タップ、またはドラッグ</span></div><div id="palette"></div><p class="hint">音符の長さに合わせてマスが広がります。<br>音符をドラッグしてマスにドロップできます。</p><div id="message" role="status" aria-live="polite">好きな音符を並べてみよう！</div></section>
-<section class="saved"><div class="section-title"><h2>リズムの引き出し</h2><span id="save-count"></span></div><div class="save-form"><input id="name" maxlength="30" placeholder="パターンの名前" aria-label="保存するパターンの名前"><button id="save">＋ 保存</button></div><div id="patterns"></div><p class="storage-note">このブラウザに保存されます</p></section></aside></main><footer><span class="dot"></span>再生するとメトロノームが鳴ります。手をたたいて、リズムを楽しもう。</footer><script src="app.js"></script></body></html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>リズムのひろば</title>
+<style>
+:root {
+  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  color: #263d38;
+  background: #f5f5ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 22px 30px; }
+button, input, select { font: inherit; }
+button {
+  cursor: pointer;
+  border: 1px solid #d9dfd7;
+  border-radius: 9px;
+  background: #fff;
+  color: #344d42;
+  padding: 9px 12px;
+}
+button:hover { background: #edf2e5; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid #d69b33;
+  outline-offset: 2px;
+}
+[hidden] { display: none !important; }
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #829071;
+}
+h1 { font-size: 27px; margin: 4px 0; }
+h1 small { font-size: 12px; font-weight: normal; color: #88917f; }
+.header-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.header-actions button { font-size: 12px; }
+#fullscreen, #play {
+  background: #294f43;
+  border-color: #294f43;
+  color: white;
+}
+.transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  padding: 12px 15px;
+  margin-bottom: 20px;
+  border: 1px solid #dce3d3;
+  border-radius: 12px;
+  background: #fffef9;
+}
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.field input[type=number] { width: 65px; }
+input, select {
+  border: 1px solid #d9dfd2;
+  border-radius: 7px;
+  padding: 7px;
+  background: #fff;
+  color: #344d42;
+  min-width: 0;
+}
+input[type=checkbox] {
+  width: 17px;
+  height: 17px;
+  accent-color: #47754a;
+}
+#play { min-width: 90px; }
+#play-status {
+  font-size: 14px;
+  font-weight: bold;
+  color: #637740;
+  margin-left: auto;
+}
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 24px;
+}
+.workspace { min-width: 0; width: 100%; }
+.board-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+.meter { color: #819079; font-size: 12px; }
+#score { display: flex; flex-direction: column; gap: 20px; }
+.bar-label {
+  font-size: 11px;
+  color: #87937d;
+  margin-bottom: 7px;
+}
+.bar {
+  width: 100%;
+  aspect-ratio: 4;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 2px solid #b8c5ad;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fffef9;
+}
+.beat {
+  border-right: 2px solid #dce3d3;
+  position: relative;
+  pointer-events: none;
+}
+.beat:last-child { border-right: 0; }
+.beat span {
+  position: absolute;
+  left: 9px;
+  bottom: 6px;
+  color: #a1ad96;
+  font-size: 11px;
+}
+.slot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12.5%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  z-index: 1;
+}
+.slot:hover { background: #eaf0df; }
+.note {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 10px 5px 22px;
+  border: 0;
+  border-right: 2px solid #fffef9;
+  border-radius: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #e5edcf;
+  color: #233b2f;
+  cursor: grab;
+  z-index: 2;
+}
+.note:hover { background: #d8e6b9; }
+.note[data-kind=eighth], .note[data-kind=eighthRest] {
+  background: #f7e5c6;
+}
+.note[data-kind=dotted], .note[data-kind=takka] {
+  background: #dce9e7;
+}
+.note[data-kind=whole], .note[data-kind=half],
+.note[data-kind=wholeRest], .note[data-kind=halfRest] {
+  background: #e8e3f0;
+}
+.note svg {
+  height: 86%;
+  width: 100%;
+  max-width: 210px;
+  overflow: visible;
+  pointer-events: none;
+}
+.duration {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  font-size: 10px;
+  color: #748165;
+}
+.note.playing-note svg {
+  color: #885405;
+  filter: drop-shadow(0 0 5px #e8b23e);
+}
+.play-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 25%;
+  background: #f6c34244;
+  box-shadow: inset 0 0 0 5px #dda52f;
+  pointer-events: none;
+  z-index: 5;
+}
+.drop-preview {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #a4d6a766;
+  box-shadow: inset 0 0 0 4px #50875c;
+  pointer-events: none;
+  z-index: 6;
+}
+.drop-preview.invalid {
+  background: #edaaaa77;
+  box-shadow: inset 0 0 0 4px #bb5252;
+}
+.panel {
+  background: #fffefb;
+  border: 1px solid #e0e5d6;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 15px;
+}
+h2 { margin: 0 0 12px; font-size: 14px; }
+#palette {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.pick {
+  padding: 5px 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  cursor: grab;
+}
+.pick svg { width: 40px; height: 44px; }
+.pick span { font-size: 8px; white-space: nowrap; }
+.pick.active, .dynamic-pick.active {
+  background: #eaf1dd;
+  border-color: #6c8b4b;
+  box-shadow: inset 0 0 0 1px #6c8b4b;
+}
+.hint, .storage-note {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #84917b;
+}
+#message {
+  border-top: 1px solid #e6eadf;
+  padding-top: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #5f7543;
+  min-height: 40px;
+}
+.dynamic-palette {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+.dynamic-pick {
+  min-height: 38px;
+  font-family: Georgia, serif;
+  font-size: 23px;
+  font-style: italic;
+  font-weight: bold;
+}
+.dynamic-pick[data-dynamic=erase] {
+  font-family: inherit;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: normal;
+}
+.length-field { margin-top: 12px; }
+.dyn-lane {
+  height: 64px;
+  margin-top: 6px;
+  position: relative;
+  border-radius: 8px;
+  background: #eef2e6;
+  border: 1px dashed #c5cfb5;
+}
+.dyn-slot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12.5%;
+  padding: 0;
+  border: 0;
+  border-right: 1px dotted #cfd8c1;
+  border-radius: 0;
+  background: transparent;
+}
+.dyn-slot:hover { background: #dae5c6; }
+.dyn-mark {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+.fixed-mark {
+  top: 0;
+  font: italic bold 25px Georgia, serif;
+  padding-left: 5px;
+  color: #344e39;
+}
+.hairpin {
+  top: 31px;
+  height: 28px;
+}
+.hairpin svg { width: 100%; height: 28px; overflow: visible; }
+.remove-mark {
+  pointer-events: auto;
+  position: absolute;
+  padding: 0;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  font: 12px sans-serif;
+  color: #68745b;
+  background: #fffefb;
+}
+.fixed-mark .remove-mark { left: 31px; top: 0; }
+.hairpin .remove-mark { right: 0; top: -9px; }
+.save-form { display: flex; gap: 6px; }
+#name { flex: 1; min-width: 0; width: 100%; font-size: 12px; }
+#save { white-space: nowrap; font-size: 12px; padding: 8px; }
+#patterns { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.pattern {
+  display: flex;
+  border: 1px solid #e2e7d9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pattern.chosen { background: #eaf1dd; border-color: #8ea578; }
+.load { flex: 1; text-align: left; border: 0; background: transparent; font-size: 12px; }
+.delete { border: 0; background: transparent; color: #929e85; }
+footer { margin-top: 18px; color: #8a947e; font-size: 11px; }
+body.present aside, body.present footer, body.present h1 small { display: none; }
+body.present { padding: 12px 20px; }
+body.present header { margin-bottom: 10px; }
+body.present h1 { font-size: 22px; }
+body.present main { display: block; }
+body.present .workspace { margin: auto; }
+body.present .transport { margin-bottom: 10px; padding: 8px 12px; }
+body.present #score { gap: 10px; }
+body.present .remove-mark { display: none; }
+body.present .slot, body.present .note, body.present .dyn-slot {
+  pointer-events: none;
+}
+@media(max-width:1000px) {
+  body { padding: 18px; }
+  main { grid-template-columns: 1fr; }
+  aside { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .panel { margin: 0; }
+  h1 small { display: none; }
+}
+@media(max-width:600px) {
+  body { padding: 12px; }
+  h1 { font-size: 21px; }
+  header { align-items: flex-start; }
+  .header-actions { justify-content: flex-end; }
+  .header-actions button { padding: 7px; font-size: 10px; }
+  aside { grid-template-columns: 1fr; }
+  .transport { gap: 10px; padding: 10px; }
+  #play-status { width: 100%; margin: 0; }
+  .note { padding: 6px 2px 16px; }
+  .duration { font-size: 8px; bottom: 3px; right: 3px; }
+  .bar { border-radius: 7px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">RHYTHM PLAYGROUND</div>
+    <h1>リズムのひろば <small>2小節であそぼう</small></h1>
+  </div>
+  <div class="header-actions">
+    <button id="undo">↶ もどす</button>
+    <button id="clear">クリア</button>
+    <button id="fullscreen">⛶ 全画面</button>
+  </div>
+</header>
+
+<section class="transport" aria-label="再生設定">
+  <button id="play" aria-pressed="false">▶ 再生</button>
+  <label class="field">
+    テンポ
+    <input id="tempo" type="number" min="40" max="240" value="100">
+    BPM
+  </label>
+  <label class="field">
+    音
+    <select id="sound">
+      <option value="metronome">メトロノームのみ</option>
+      <option value="clarinet">クラリネット風</option>
+      <option value="snare">スネア</option>
+    </select>
+  </label>
+  <label class="field">
+    <input id="metronome" type="checkbox" checked>
+    メトロノーム
+  </label>
+  <label class="field">
+    <input id="loop" type="checkbox">
+    くり返す
+  </label>
+  <label class="field">
+    <input id="dynamics-enabled" type="checkbox">
+    強弱あり
+  </label>
+  <output id="play-status" role="status" aria-live="polite">
+    4カウントでスタート
+  </output>
+</section>
+
+<main>
+  <section class="workspace" id="workspace">
+    <div class="board-heading">
+      <strong id="pattern-title">はじめのリズム</strong>
+      <span class="meter">4 / 4 ・ 2小節</span>
+    </div>
+    <div id="score" aria-label="2小節のリズム"></div>
+  </section>
+
+  <aside>
+    <section class="panel">
+      <h2>音符をえらぶ</h2>
+      <div id="palette"></div>
+      <p class="hint">
+        選んでマスをタップ。またはドラッグして配置。<br>
+        配置済みの音符同士もドラッグで入れ替えられます。
+      </p>
+      <div id="message" role="status" aria-live="polite">
+        好きなリズムを並べてみよう！
+      </div>
+    </section>
+
+    <section class="panel" id="dynamic-tools" hidden>
+      <h2>強弱をつける</h2>
+      <div class="dynamic-palette">
+        <button class="dynamic-pick" data-dynamic="f">f</button>
+        <button class="dynamic-pick active" data-dynamic="mf">mf</button>
+        <button class="dynamic-pick" data-dynamic="mp">mp</button>
+        <button class="dynamic-pick" data-dynamic="p">p</button>
+        <button class="dynamic-pick" data-dynamic="crescendo"
+          aria-label="クレッシェンド">〈</button>
+        <button class="dynamic-pick" data-dynamic="decrescendo"
+          aria-label="デクレッシェンド">〉</button>
+        <button class="dynamic-pick" data-dynamic="erase">消しゴム</button>
+      </div>
+      <label class="field length-field">
+        変化させる長さ
+        <select id="dynamic-length" disabled>
+          <option value="1">0.5拍</option>
+          <option value="2">1拍</option>
+          <option value="3">1.5拍</option>
+          <option value="4">2拍</option>
+          <option value="5">2.5拍</option>
+          <option value="6">3拍</option>
+          <option value="7">3.5拍</option>
+          <option value="8" selected>4拍</option>
+        </select>
+      </label>
+      <p class="hint">
+        記号を選び、小節の下の強弱欄をタップします。<br>
+        クレッシェンド等は最大4拍。小節をまたぐ配置もできます。<br>
+        記号の「×」で削除できます。<br>
+        強弱なしに戻しても、置いた記号は保持されます。
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2>リズムの引き出し <small id="save-count"></small></h2>
+      <div class="save-form">
+        <input id="name" maxlength="30" placeholder="パターンの名前"
+          aria-label="保存する名前">
+        <button id="save">＋ 保存</button>
+      </div>
+      <div id="patterns"></div>
+      <p class="storage-note">
+        リズムと強弱はこのブラウザに保存されます。<br>
+        クラリネットとスネアはブラウザ内で作る合成音です。
+      </p>
+    </section>
+  </aside>
+</main>
+<footer>
+  リズムの音を鳴らす場合は、音の選択を「クラリネット風」または「スネア」にしてください。
+</footer>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const clone = value => JSON.parse(JSON.stringify(value));
+const uid = () => globalThis.crypto?.randomUUID?.()
+  || Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+const STORE = "rhythm-patterns-v1";
+const TYPES = [
+  ["quarter", "四分音符", 2],
+  ["eighth", "八分音符", 1],
+  ["quarterRest", "四分休符", 2],
+  ["eighthRest", "八分休符", 1],
+  ["halfRest", "二分休符", 4],
+  ["wholeRest", "全休符", 8],
+  ["whole", "全音符", 8],
+  ["half", "二分音符", 4],
+  ["dotted", "付点四分", 3],
+  ["sixteenths", "16分の4連", 2],
+  ["eighths", "8分の2連", 2],
+  ["takka", "タッカ", 2]
+];
+const typeOf = kind => TYPES.find(t => t[0] === kind);
+const lengthOf = kind => typeOf(kind)?.[2] || 0;
+const LEVELS = { p: .22, mp: .4, mf: .65, f: 1 };
+const isFixed = kind => Object.hasOwn(LEVELS, kind);
+const isHairpin = kind => kind === "crescendo" || kind === "decrescendo";
+
+let notes = [
+  { bar: 0, start: 0, kind: "quarter" },
+  { bar: 0, start: 2, kind: "eighths" },
+  { bar: 0, start: 4, kind: "quarter" },
+  { bar: 0, start: 6, kind: "quarterRest" },
+  { bar: 1, start: 0, kind: "dotted" },
+  { bar: 1, start: 3, kind: "eighth" },
+  { bar: 1, start: 4, kind: "takka" },
+  { bar: 1, start: 6, kind: "quarter" }
+];
+let dynamics = [];
+let dynamicsEnabled = false;
+let selectedNote = "quarter";
+let selectedDynamic = "mf";
+let activeId = null;
+let title = "はじめのリズム";
+let drag = null;
+const undoStack = [];
+
+const engine = {
+  audio: null,
+  master: null,
+  wave: null,
+  noise: null,
+  voices: new Set(),
+  playing: false,
+  starting: false,
+  runId: 0,
+  timer: null,
+  frame: null,
+  origin: 0,
+  seconds: .6,
+  nextStep: 0,
+  lastVisual: null,
+  loop: false,
+  sound: "metronome",
+  metronome: true,
+  events: new Map(),
+  marks: [],
+  useDynamics: false
+};
+
+function say(text) {
+  $("message").textContent = text;
+}
+
+function validNotes(list) {
+  if (!Array.isArray(list)) return false;
+  if (!list.every(n => n &&
+    Number.isInteger(n.bar) && n.bar >= 0 && n.bar <= 1 &&
+    Number.isInteger(n.start) && n.start >= 0 &&
+    lengthOf(n.kind) > 0 && n.start + lengthOf(n.kind) <= 8)) {
+    return false;
+  }
+  return list.every((a, i) => list.every((b, j) =>
+    i === j || a.bar !== b.bar ||
+    a.start + lengthOf(a.kind) <= b.start ||
+    b.start + lengthOf(b.kind) <= a.start
+  ));
+}
+
+function validDynamics(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(m => m &&
+    Number.isInteger(m.at) && m.at >= 0 && m.at < 16 &&
+    (isFixed(m.kind) ||
+      (isHairpin(m.kind) && Number.isInteger(m.length) &&
+       m.length >= 1 && m.length <= 8 && m.at + m.length <= 16))
+  ).map(m => ({
+    kind: m.kind,
+    at: m.at,
+    ...(isHairpin(m.kind) ? { length: m.length } : {})
+  }));
+}
+
+let patterns = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || "[]");
+  if (Array.isArray(saved)) {
+    patterns = saved.filter(p =>
+      p && typeof p.name === "string" && validNotes(p.notes)
+    ).map(p => ({
+      id: typeof p.id === "string" ? p.id : uid(),
+      name: p.name,
+      notes: clone(p.notes),
+      dynamics: validDynamics(p.dynamics),
+      dynamicsEnabled: p.dynamicsEnabled === true
+    }));
+  }
+} catch {
+  say("保存データを読み込めませんでした。ブラウザの保存設定を確認してください。");
+}
+
+function snapshot() {
+  return {
+    notes: clone(notes),
+    dynamics: clone(dynamics),
+    dynamicsEnabled,
+    activeId,
+    title
+  };
+}
+
+function remember() {
+  if (engine.playing || engine.starting) {
+    stopPlayback("編集のため停止しました");
+  }
+  undoStack.push(snapshot());
+  if (undoStack.length > 50) undoStack.shift();
+}
+
+function changed() {
+  activeId = null;
+  title = "編集中のリズム";
+  render();
+}
+
+function head(x, y, open = false) {
+  return `<ellipse cx="${x}" cy="${y}" rx="10" ry="7"
+    transform="rotate(-20 ${x} ${y})"
+    fill="${open ? "white" : "currentColor"}"
+    stroke="currentColor" stroke-width="3"/>`;
+}
+
+function stem(x, y) {
+  return `<path d="M${x + 9} ${y}V${y - 48}"
+    stroke="currentColor" stroke-width="4"/>`;
+}
+
+function symbol(kind) {
+  let s = "";
+  if (kind === "whole") {
+    s = head(50, 61, true);
+  } else if (kind === "halfRest" || kind === "wholeRest") {
+    s = `<path d="M25 50H80" stroke="currentColor" stroke-width="3"/>
+      <rect x="37" y="${kind === "halfRest" ? 38 : 50}"
+        width="31" height="12" fill="currentColor"/>`;
+  } else if (kind === "quarterRest") {
+    s = `<path d="M49 15L62 32L48 44L59 60Q35 55 48 80
+      Q20 63 44 52L34 40L48 28L40 15Z" fill="currentColor"/>`;
+  } else if (kind === "eighthRest") {
+    s = `<circle cx="40" cy="38" r="8" fill="currentColor"/>
+      <path d="M41 44Q53 48 61 32L48 80" fill="none"
+        stroke="currentColor" stroke-width="5"/>`;
+  } else if (["sixteenths", "eighths", "takka"].includes(kind)) {
+    const xs = kind === "sixteenths" ? [14, 37, 60, 83] : [25, 72];
+    s = xs.map(x => head(x, 72) + stem(x, 72)).join("");
+    s += `<path d="M${xs[0] + 9} 24H${xs[xs.length - 1] + 9}"
+      stroke="currentColor" stroke-width="7"/>`;
+    if (kind === "sixteenths") {
+      s += `<path d="M23 36H92" stroke="currentColor" stroke-width="6"/>`;
+    }
+    if (kind === "takka") {
+      s += `<circle cx="47" cy="68" r="4" fill="currentColor"/>
+        <path d="M67 36H81" stroke="currentColor" stroke-width="6"/>`;
+    }
+  } else {
+    s = head(43, 73, kind === "half") + stem(43, 73);
+    if (kind === "eighth") {
+      s += `<path d="M52 25Q79 38 63 56Q69 41 52 38Z"
+        fill="currentColor"/>`;
+    }
+    if (kind === "dotted") {
+      s += `<circle cx="67" cy="70" r="4" fill="currentColor"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 105 100" aria-hidden="true">${s}</svg>`;
+}
+
+function unitAt(element, event) {
+  const rect = element.getBoundingClientRect();
+  return Math.max(0, Math.min(7,
+    Math.floor((event.clientX - rect.left) / rect.width * 8)
+  ));
+}
+
+function placeNote(kind, bar, start) {
+  if (kind === "erase") {
+    const hit = notes.find(n => n.bar === bar &&
+      start >= n.start && start < n.start + lengthOf(n.kind));
+    if (!hit) return;
+    remember();
+    notes = notes.filter(n => n !== hit);
+    changed();
+    say("音符を消しました。");
+    return;
+  }
+  const size = lengthOf(kind);
+  if (start + size > 8) {
+    say("小節の中に収まる場所を選んでね。");
+    return;
+  }
+  remember();
+  notes = notes.filter(n => n.bar !== bar ||
+    n.start >= start + size || n.start + lengthOf(n.kind) <= start);
+  notes.push({ bar, start, kind });
+  changed();
+  say("配置しました。");
+}
+
+function moveNote(targetBar, targetStart) {
+  const source = notes.find(n =>
+    n.bar === drag?.bar && n.start === drag?.start);
+  if (!source) return;
+  const target = notes.find(n => n.bar === targetBar &&
+    targetStart >= n.start && targetStart < n.start + lengthOf(n.kind));
+  if (source === target) return;
+
+  const next = notes.filter(n => n !== source && n !== target);
+  next.push({
+    ...source,
+    bar: targetBar,
+    start: target ? target.start : targetStart
+  });
+  if (target) {
+    next.push({ ...target, bar: source.bar, start: source.start });
+  }
+  if (!validNotes(next)) {
+    say("長さが収まらないため入れ替えできません。空いた場所へ移動してね。");
+    return;
+  }
+  remember();
+  notes = next;
+  changed();
+  say(target ? "音符を入れ替えました。" : "音符を移動しました。");
+}
+
+function clearDrop() {
+  drag = null;
+  document.querySelectorAll(".drop-preview").forEach(e => e.hidden = true);
+}
+
+function placeDynamic(at) {
+  if (!dynamicsEnabled) return;
+  if (selectedDynamic === "erase") {
+    let index = dynamics.findIndex(m => isFixed(m.kind) && m.at === at);
+    if (index < 0) {
+      index = dynamics.findIndex(m => isHairpin(m.kind) &&
+        at >= m.at && at < m.at + m.length);
+    }
+    if (index >= 0) removeDynamic(index);
+    return;
+  }
+
+  const length = isHairpin(selectedDynamic)
+    ? Number($("dynamic-length").value) : 0;
+
+  if (length && at + length > 16) {
+    say("2小節の中に収まる位置か、短い長さを選んでね。");
+    return;
+  }
+  remember();
+
+  if (isFixed(selectedDynamic)) {
+    dynamics = dynamics.filter(m => !(isFixed(m.kind) && m.at === at));
+    dynamics.push({ kind: selectedDynamic, at });
+  } else {
+    dynamics = dynamics.filter(m => !isHairpin(m.kind) ||
+      m.at >= at + length || m.at + m.length <= at);
+    dynamics.push({ kind: selectedDynamic, at, length });
+  }
+  changed();
+  say("強弱を配置しました。強弱はリズム音の音量に反映されます。");
+}
+
+function removeDynamic(index) {
+  remember();
+  dynamics.splice(index, 1);
+  changed();
+  say("強弱記号を消しました。");
+}
+
+function makeDynamicLane(barIndex) {
+  const lane = document.createElement("div");
+  lane.className = "dyn-lane";
+  lane.setAttribute("aria-label", `${barIndex + 1}小節目の強弱欄`);
+
+  for (let i = 0; i < 8; i++) {
+    const button = document.createElement("button");
+    button.className = "dyn-slot";
+    button.style.left = `${i * 12.5}%`;
+    button.setAttribute("aria-label",
+      `${barIndex + 1}小節目 ${i / 2 + 1}拍目に強弱を配置`);
+    button.onclick = () => placeDynamic(barIndex * 8 + i);
+    lane.append(button);
+  }
+
+  dynamics.forEach((m, index) => {
+    const left = barIndex * 8;
+    const right = left + 8;
+    const mark = document.createElement("div");
+    mark.className = "dyn-mark";
+
+    if (isFixed(m.kind)) {
+      if (m.at < left || m.at >= right) return;
+      mark.classList.add("fixed-mark");
+      mark.style.left = `${(m.at - left) * 12.5}%`;
+      const text = document.createElement("span");
+      text.textContent = m.kind;
+      mark.append(text);
+    } else {
+      const from = Math.max(left, m.at);
+      const to = Math.min(right, m.at + m.length);
+      if (from >= to) return;
+      mark.classList.add("hairpin");
+      mark.style.left = `${(from - left) * 12.5}%`;
+      mark.style.width = `${(to - from) * 12.5}%`;
+
+      const progressA = (from - m.at) / m.length;
+      const progressB = (to - m.at) / m.length;
+      const spread = progress =>
+        2 + 10 * (m.kind === "crescendo" ? progress : 1 - progress);
+      const a = spread(progressA);
+      const b = spread(progressB);
+
+      mark.innerHTML = `<svg viewBox="0 0 100 30"
+        preserveAspectRatio="none" aria-hidden="true">
+        <path d="M1 ${15 - a}L99 ${15 - b}
+                 M1 ${15 + a}L99 ${15 + b}"
+          fill="none" stroke="currentColor" stroke-width="2"
+          vector-effect="non-scaling-stroke"/>
+        </svg>`;
+      mark.title = `${m.kind === "crescendo"
+        ? "クレッシェンド" : "デクレッシェンド"} ${m.length / 2}拍`;
+    }
+
+    const remove = document.createElement("button");
+    remove.className = "remove-mark";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", "この強弱記号を削除");
+    remove.onclick = event => {
+      event.stopPropagation();
+      removeDynamic(index);
+    };
+    mark.append(remove);
+    lane.append(mark);
+  });
+
+  return lane;
+}
+
+function renderScore() {
+  $("score").replaceChildren();
+
+  for (let barIndex = 0; barIndex < 2; barIndex++) {
+    const wrap = document.createElement("div");
+    const label = document.createElement("div");
+    label.className = "bar-label";
+    label.textContent = `0${barIndex + 1} 小節目`;
+
+    const row = document.createElement("div");
+    row.className = "bar";
+
+    for (let beat = 1; beat <= 4; beat++) {
+      const box = document.createElement("div");
+      box.className = "beat";
+      box.innerHTML = `<span>${beat}</span>`;
+      row.append(box);
+    }
+
+    for (let start = 0; start < 8; start++) {
+      const slot = document.createElement("button");
+      slot.className = "slot";
+      slot.style.left = `${start * 12.5}%`;
+      slot.setAttribute("aria-label",
+        `${barIndex + 1}小節目 ${start / 2 + 1}拍目に配置`);
+      slot.onclick = () => placeNote(selectedNote, barIndex, start);
+      row.append(slot);
+    }
+
+    notes.filter(n => n.bar === barIndex)
+      .sort((a, b) => a.start - b.start)
+      .forEach(n => {
+        const tile = document.createElement("button");
+        tile.className = "note";
+        tile.dataset.kind = n.kind;
+        tile.dataset.start = n.start;
+        tile.dataset.end = n.start + lengthOf(n.kind);
+        tile.style.left = `${n.start * 12.5}%`;
+        tile.style.width = `${lengthOf(n.kind) * 12.5}%`;
+        tile.draggable = true;
+        tile.setAttribute("aria-label",
+          `${barIndex + 1}小節目 ${n.start / 2 + 1}拍目 ${typeOf(n.kind)[1]}`);
+        tile.innerHTML = symbol(n.kind) +
+          `<span class="duration">${lengthOf(n.kind) / 2}拍</span>`;
+
+        tile.onclick = event => placeNote(selectedNote, barIndex,
+          event.detail === 0 ? n.start : unitAt(row, event));
+
+        tile.ondragstart = event => {
+          drag = { type: "note", bar: n.bar, start: n.start };
+          event.dataTransfer.setData("text/plain", "rhythm-note");
+          event.dataTransfer.effectAllowed = "move";
+        };
+        tile.ondragend = clearDrop;
+        row.append(tile);
+      });
+
+    const preview = document.createElement("div");
+    preview.className = "drop-preview";
+    preview.hidden = true;
+    row.append(preview);
+
+    const cursor = document.createElement("div");
+    cursor.className = "play-cursor";
+    cursor.hidden = true;
+    row.append(cursor);
+
+    row.ondragover = event => {
+      if (!drag) return;
+      const kind = drag.type === "palette" ? drag.kind :
+        notes.find(n => n.bar === drag.bar && n.start === drag.start)?.kind;
+      if (!kind) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = drag.type === "palette" ? "copy" : "move";
+      const start = unitAt(row, event);
+      preview.hidden = false;
+      preview.style.left = `${start * 12.5}%`;
+      preview.style.width = `${Math.min(lengthOf(kind), 8 - start) * 12.5}%`;
+      preview.classList.toggle("invalid", start + lengthOf(kind) > 8);
+    };
+
+    row.ondragleave = event => {
+      if (!row.contains(event.relatedTarget)) preview.hidden = true;
+    };
+
+    row.ondrop = event => {
+      if (!drag) return;
+      event.preventDefault();
+      const start = unitAt(row, event);
+      if (drag.type === "palette") {
+        placeNote(drag.kind, barIndex, start);
+      } else {
+        moveNote(barIndex, start);
+      }
+      clearDrop();
+    };
+
+    wrap.append(label, row);
+    if (dynamicsEnabled) wrap.append(makeDynamicLane(barIndex));
+    $("score").append(wrap);
+  }
+}
+
+function renderPatterns() {
+  $("patterns").replaceChildren();
+  $("save-count").textContent = `(${patterns.length})`;
+
+  patterns.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "pattern" + (p.id === activeId ? " chosen" : "");
+
+    const load = document.createElement("button");
+    load.className = "load";
+    load.textContent = "▦ " + p.name;
+    load.onclick = () => {
+      remember();
+      notes = clone(p.notes);
+      dynamics = clone(p.dynamics || []);
+      dynamicsEnabled = p.dynamicsEnabled === true;
+      title = p.name;
+      activeId = p.id;
+      $("name").value = p.name;
+      render();
+      say("保存したリズムを開きました。");
+    };
+
+    const remove = document.createElement("button");
+    remove.className = "delete";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `${p.name}を削除`);
+    remove.onclick = () => {
+      if (!confirm(`「${p.name}」を削除しますか？`)) return;
+      const previous = patterns;
+      patterns = patterns.filter(item => item.id !== p.id);
+      if (!persist()) patterns = previous;
+      renderPatterns();
+    };
+
+    row.append(load, remove);
+    $("patterns").append(row);
+  });
+}
+
+function render() {
+  $("pattern-title").textContent = title;
+  $("dynamics-enabled").checked = dynamicsEnabled;
+  $("dynamic-tools").hidden = !dynamicsEnabled;
+  $("undo").disabled = !undoStack.length;
+  renderScore();
+  renderPatterns();
+  requestAnimationFrame(fitPresentation);
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(patterns));
+    return true;
+  } catch {
+    say("保存できませんでした。ブラウザの保存容量・設定を確認してください。");
+    return false;
+  }
+}
+
+for (const [kind, label] of [...TYPES, ["erase", "消しゴム"]]) {
+  const button = document.createElement("button");
+  button.className = "pick" + (kind === selectedNote ? " active" : "");
+  button.title = label;
+  button.setAttribute("aria-pressed", String(kind === selectedNote));
+  button.innerHTML = kind === "erase"
+    ? '<span style="height:44px;font-size:28px">⌫</span><span>消しゴム</span>'
+    : symbol(kind) + `<span>${label}</span>`;
+
+  button.onclick = () => {
+    selectedNote = kind;
+    document.querySelectorAll(".pick").forEach(b => {
+      b.classList.toggle("active", b === button);
+      b.setAttribute("aria-pressed", String(b === button));
+    });
+    say(`${label}を選びました。`);
+  };
+
+  if (kind !== "erase") {
+    button.draggable = true;
+    button.ondragstart = event => {
+      drag = { type: "palette", kind };
+      event.dataTransfer.setData("text/plain", "rhythm-palette");
+      event.dataTransfer.effectAllowed = "copy";
+    };
+    button.ondragend = clearDrop;
+  }
+
+  $("palette").append(button);
+}
+
+document.querySelectorAll(".dynamic-pick").forEach(button => {
+  button.setAttribute("aria-pressed",
+    String(button.dataset.dynamic === selectedDynamic));
+  button.onclick = () => {
+    selectedDynamic = button.dataset.dynamic;
+    document.querySelectorAll(".dynamic-pick").forEach(b => {
+      b.classList.toggle("active", b === button);
+      b.setAttribute("aria-pressed", String(b === button));
+    });
+    $("dynamic-length").disabled = !isHairpin(selectedDynamic);
+    say("小節の下の強弱欄をタップしてね。");
+  };
+});
+
+$("dynamics-enabled").onchange = () => {
+  remember();
+  dynamicsEnabled = $("dynamics-enabled").checked;
+  changed();
+  say(dynamicsEnabled ? "強弱を追加できます。" : "強弱なしにしました。");
+};
+
+$("undo").onclick = () => {
+  if (!undoStack.length) return;
+  stopPlayback();
+  const previous = undoStack.pop();
+  notes = previous.notes;
+  dynamics = previous.dynamics;
+  dynamicsEnabled = previous.dynamicsEnabled;
+  activeId = previous.activeId;
+  title = previous.title;
+  render();
+  say("ひとつ前に戻しました。");
+};
+
+$("clear").onclick = () => {
+  remember();
+  notes = [];
+  dynamics = [];
+  changed();
+  say("音符と強弱記号を消しました。「もどす」で戻せます。");
+};
+
+$("save").onclick = () => {
+  const name = $("name").value.trim() || `リズム ${patterns.length + 1}`;
+  const pattern = {
+    id: uid(),
+    name,
+    notes: clone(notes),
+    dynamics: clone(dynamics),
+    dynamicsEnabled
+  };
+  patterns.push(pattern);
+  if (!persist()) {
+    patterns.pop();
+    return;
+  }
+  activeId = pattern.id;
+  title = name;
+  $("name").value = "";
+  render();
+  say("リズムと強弱を保存しました。");
+};
+
+/* 発音位置と長さ。数値の単位は四分音符1拍。 */
+const MOTIFS = {
+  quarter: [[0, 1]],
+  eighth: [[0, .5]],
+  whole: [[0, 4]],
+  half: [[0, 2]],
+  dotted: [[0, 1.5]],
+  sixteenths: [[0, .25], [.25, .25], [.5, .25], [.75, .25]],
+  eighths: [[0, .5], [.5, .5]],
+  takka: [[0, .75], [.75, .25]],
+  quarterRest: [],
+  eighthRest: [],
+  halfRest: [],
+  wholeRest: []
+};
+
+function rhythmEvents(list) {
+  return list.flatMap(n => MOTIFS[n.kind].map(([offset, duration]) => ({
+    beat: n.bar * 4 + n.start / 2 + offset,
+    duration
+  }))).sort((a, b) => a.beat - b.beat);
+}
+
+/*
+  強弱の位置は八分音符単位。
+  記号なしはmf。ヘアピン終点に記号があれば、その音量へ変化。
+  終点の指定がなければ、現在の音量を基準に変化。
+*/
+function levelAt(unit, marks, enabled) {
+  if (!enabled) return LEVELS.mf;
+  let level = LEVELS.mf;
+
+  const ordered = [...marks].sort((a, b) =>
+    a.at - b.at ||
+    Number(!isFixed(a.kind)) - Number(!isFixed(b.kind))
+  );
+
+  for (const mark of ordered) {
+    if (mark.at > unit) break;
+
+    if (isFixed(mark.kind)) {
+      level = LEVELS[mark.kind];
+      continue;
+    }
+
+    const endMark = ordered.find(m =>
+      isFixed(m.kind) && m.at === mark.at + mark.length);
+    const target = endMark ? LEVELS[endMark.kind] :
+      mark.kind === "crescendo"
+        ? Math.min(1, level * 1.8)
+        : Math.max(.1, level * .45);
+
+    const progress = Math.min(1, Math.max(0,
+      (unit - mark.at) / mark.length));
+    level += (target - level) * progress;
+  }
+
+  return level;
+}
+
+function getAudio() {
+  if (engine.audio && engine.audio.state !== "closed") return engine.audio;
+
+  const Audio = window.AudioContext || window.webkitAudioContext;
+  if (!Audio) throw Error("Web Audio is unavailable");
+
+  const audio = new Audio();
+  const master = audio.createGain();
+  master.gain.value = .75;
+  master.connect(audio.destination);
+
+  const real = new Float32Array(32);
+  const imag = new Float32Array(32);
+  imag[1] = 1;
+  imag[3] = .62;
+  imag[5] = .31;
+  imag[7] = .17;
+  imag[9] = .08;
+  imag[11] = .035;
+
+  const noise = audio.createBuffer(1, Math.ceil(audio.sampleRate * .2),
+    audio.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+
+  engine.audio = audio;
+  engine.master = master;
+  engine.wave = audio.createPeriodicWave(real, imag);
+  engine.noise = noise;
+
+  audio.onstatechange = () => {
+    if (engine.playing && audio.state !== "running") {
+      stopPlayback("音声が中断されたため停止しました");
+    }
+  };
+
+  return audio;
+}
+
+function track(source, time, end, cleanup) {
+  engine.voices.add(source);
+  source.onended = () => {
+    engine.voices.delete(source);
+    source.disconnect();
+    if (cleanup) cleanup();
+  };
+  source.start(time);
+  source.stop(end);
+}
+
+function metronomeClick(time, accent) {
+  const audio = engine.audio;
+  const oscillator = audio.createOscillator();
+  const gain = audio.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.value = accent ? 1300 : 900;
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(.16, time + .003);
+  gain.gain.exponentialRampToValueAtTime(.001, time + .045);
+  oscillator.connect(gain);
+  gain.connect(engine.master);
+  track(oscillator, time, time + .05, () => gain.disconnect());
+}
+
+function clarinetSound(time, event) {
+  const audio = engine.audio;
+  const oscillator = audio.createOscillator();
+  const filter = audio.createBiquadFilter();
+  const gain = audio.createGain();
+
+  const duration = event.duration * engine.seconds;
+  const attack = Math.min(.015, duration * .15);
+  const release = Math.min(.05, duration * .2);
+  const hold = duration - release;
+  const volume = offset => .2 * levelAt(
+    (event.beat + offset / engine.seconds) * 2,
+    engine.marks,
+    engine.useDynamics
+  );
+
+  oscillator.setPeriodicWave(engine.wave);
+  oscillator.frequency.setValueAtTime(261.63, time);
+  filter.type = "lowpass";
+  filter.frequency.value = 2400 + volume(0) * 8000;
+  filter.Q.value = .6;
+
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(volume(attack), time + attack);
+
+  const increment = engine.seconds / 8;
+  for (let offset = attack + increment; offset < hold; offset += increment) {
+    gain.gain.linearRampToValueAtTime(volume(offset), time + offset);
+  }
+  gain.gain.linearRampToValueAtTime(volume(hold), time + hold);
+  gain.gain.linearRampToValueAtTime(0, time + duration);
+
+  oscillator.connect(filter);
+  filter.connect(gain);
+  gain.connect(engine.master);
+  track(oscillator, time, time + duration + .005, () => {
+    filter.disconnect();
+    gain.disconnect();
+  });
+}
+
+function snareSound(time, event) {
+  const audio = engine.audio;
+  const level = levelAt(event.beat * 2, engine.marks, engine.useDynamics);
+
+  const noise = audio.createBufferSource();
+  const filter = audio.createBiquadFilter();
+  const noiseGain = audio.createGain();
+  noise.buffer = engine.noise;
+  filter.type = "highpass";
+  filter.frequency.value = 1000;
+
+  noiseGain.gain.setValueAtTime(.001, time);
+  noiseGain.gain.linearRampToValueAtTime(.35 * level, time + .002);
+  noiseGain.gain.exponentialRampToValueAtTime(.001, time + .13);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(engine.master);
+
+  track(noise, time, time + .15, () => {
+    filter.disconnect();
+    noiseGain.disconnect();
+  });
+
+  const body = audio.createOscillator();
+  const bodyGain = audio.createGain();
+  body.type = "triangle";
+  body.frequency.setValueAtTime(185, time);
+  body.frequency.exponentialRampToValueAtTime(85, time + .08);
+  bodyGain.gain.setValueAtTime(.001, time);
+  bodyGain.gain.linearRampToValueAtTime(.15 * level, time + .002);
+  bodyGain.gain.exponentialRampToValueAtTime(.001, time + .1);
+  body.connect(bodyGain);
+  bodyGain.connect(engine.master);
+  track(body, time, time + .11, () => bodyGain.disconnect());
+}
+
+/* 16分音符刻みで少し先まで音を予約する。 */
+function scheduleAudio() {
+  if (!engine.playing) return;
+  const audio = engine.audio;
+
+  while (
+    engine.origin + engine.nextStep * engine.seconds / 4
+      < audio.currentTime + .12 &&
+    (engine.loop || engine.nextStep < 48)
+  ) {
+    const step = engine.nextStep++;
+    const time = engine.origin + step * engine.seconds / 4;
+    if (time < audio.currentTime - .025) continue;
+
+    const when = Math.max(time, audio.currentTime);
+    const countIn = step < 16;
+
+    if (step % 4 === 0 &&
+      (countIn || engine.sound === "metronome" || engine.metronome)) {
+      metronomeClick(when, step % 16 === 0);
+    }
+
+    if (!countIn && engine.sound !== "metronome") {
+      const position = (step - 16) % 32;
+      const events = engine.events.get(position) || [];
+      for (const event of events) {
+        if (engine.sound === "clarinet") clarinetSound(when, event);
+        else snareSound(when, event);
+      }
+    }
+  }
+}
+
+function clearHighlights() {
+  document.querySelectorAll(".play-cursor").forEach(e => e.hidden = true);
+  document.querySelectorAll(".playing-note").forEach(e =>
+    e.classList.remove("playing-note"));
+}
+
+function setStatus(text) {
+  if ($("play-status").textContent !== text) {
+    $("play-status").textContent = text;
+  }
+}
+
+function animatePlayback() {
+  if (!engine.playing) return;
+  const elapsed = (engine.audio.currentTime - engine.origin) / engine.seconds;
+
+  if (!engine.loop && elapsed >= 12) {
+    stopPlayback("2小節おわり！");
+    return;
+  }
+
+  const visual = Math.floor(elapsed * 4);
+  if (visual !== engine.lastVisual) {
+    engine.lastVisual = visual;
+    clearHighlights();
+
+    if (elapsed < 4) {
+      const count = Math.max(0, Math.floor(elapsed) + 1);
+      setStatus(count ? `準備：${count} / 4` : "準備…");
+    } else {
+      const position = (elapsed - 4) % 8;
+      const bar = Math.floor(position / 4);
+      const beat = Math.floor(position % 4);
+      const row = document.querySelectorAll(".bar")[bar];
+      const cursor = row.querySelector(".play-cursor");
+      cursor.hidden = false;
+      cursor.style.left = `${beat * 25}%`;
+
+      const unit = position % 4 * 2;
+      row.querySelectorAll(".note").forEach(tile => {
+        tile.classList.toggle("playing-note",
+          unit >= Number(tile.dataset.start) &&
+          unit < Number(tile.dataset.end));
+      });
+      setStatus(`${bar + 1}小節目 · ${beat + 1}拍目`);
+    }
+  }
+
+  engine.frame = requestAnimationFrame(animatePlayback);
+}
+
+function syncAudioControls() {
+  const busy = engine.playing || engine.starting;
+  $("tempo").disabled = busy;
+  $("sound").disabled = busy;
+  $("loop").disabled = busy;
+  $("metronome").disabled = busy || $("sound").value === "metronome";
+  $("play").textContent = busy ? "■ 停止" : "▶ 再生";
+  $("play").setAttribute("aria-pressed", String(busy));
+}
+
+function stopPlayback(text = "停止しました") {
+  engine.runId++;
+  engine.playing = false;
+  engine.starting = false;
+  clearInterval(engine.timer);
+  cancelAnimationFrame(engine.frame);
+  for (const source of engine.voices) {
+    try { source.stop(); } catch {}
+  }
+  engine.voices.clear();
+  clearHighlights();
+  syncAudioControls();
+  setStatus(text);
+}
+
+$("play").onclick = async () => {
+  if (engine.playing || engine.starting) {
+    stopPlayback();
+    return;
+  }
+
+  const bpm = Number($("tempo").value);
+  if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) {
+    setStatus("テンポは40〜240にしてください");
+    $("tempo").focus();
+    return;
+  }
+
+  const runId = ++engine.runId;
+  engine.starting = true;
+  syncAudioControls();
+
+  try {
+    const audio = getAudio();
+    await audio.resume();
+    if (engine.runId !== runId) return;
+    if (audio.state !== "running") throw Error("Audio suspended");
+
+    engine.seconds = 60 / bpm;
+    engine.loop = $("loop").checked;
+    engine.sound = $("sound").value;
+    engine.metronome = $("metronome").checked;
+    engine.marks = clone(dynamics);
+    engine.useDynamics = dynamicsEnabled;
+    engine.events = new Map();
+
+    for (const event of rhythmEvents(notes)) {
+      const step = Math.round(event.beat * 4);
+      if (!engine.events.has(step)) engine.events.set(step, []);
+      engine.events.get(step).push(event);
+    }
+
+    engine.origin = audio.currentTime + .1;
+    engine.nextStep = 0;
+    engine.lastVisual = null;
+    engine.starting = false;
+    engine.playing = true;
+    syncAudioControls();
+    scheduleAudio();
+    engine.timer = setInterval(scheduleAudio, 25);
+    animatePlayback();
+  } catch {
+    if (runId === engine.runId) {
+      stopPlayback("音を開始できません。ブラウザの音声設定を確認してください");
+    }
+  }
+};
+
+$("sound").onchange = () => {
+  if ($("sound").value === "metronome") $("metronome").checked = true;
+  syncAudioControls();
+};
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && (engine.playing || engine.starting)) {
+    stopPlayback("画面を離れたため停止しました");
+  }
+});
+window.addEventListener("pagehide", () => stopPlayback());
+
+function fitPresentation() {
+  const workspace = $("workspace");
+  if (!document.body.classList.contains("present")) {
+    workspace.style.maxWidth = "";
+    return;
+  }
+
+  const score = $("score");
+  const rect = score.getBoundingClientRect();
+  const barHeight = [...score.querySelectorAll(".bar")]
+    .reduce((sum, bar) => sum + bar.getBoundingClientRect().height, 0);
+  const overhead = rect.height - barHeight;
+  const available = innerHeight - rect.top - 15;
+  const width = Math.max(200, Math.floor((available - overhead) * 2));
+  workspace.style.maxWidth = width + "px";
+}
+
+function syncPresentationButton() {
+  $("fullscreen").textContent = document.body.classList.contains("present")
+    ? "⛶ 編集に戻る" : "⛶ 全画面";
+  requestAnimationFrame(fitPresentation);
+}
+
+$("fullscreen").onclick = async () => {
+  if (document.fullscreenElement) {
+    try { await document.exitFullscreen(); } catch {}
+    return;
+  }
+
+  if (document.body.classList.contains("present")) {
+    document.body.classList.remove("present");
+    syncPresentationButton();
+    return;
+  }
+
+  document.body.classList.add("present");
+  syncPresentationButton();
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch {
+    say("大きな表示に切り替えました。Escキーで編集画面に戻れます。");
+  }
+};
+
+document.addEventListener("fullscreenchange", () => {
+  document.body.classList.toggle("present", !!document.fullscreenElement);
+  syncPresentationButton();
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !document.fullscreenElement) {
+    document.body.classList.remove("present");
+    syncPresentationButton();
+  }
+});
+
+window.addEventListener("resize", fitPresentation);
+
+syncAudioControls();
+render();
+</script>
+</body>
+</html>
+```
